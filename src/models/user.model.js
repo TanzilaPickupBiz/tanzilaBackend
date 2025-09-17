@@ -48,11 +48,11 @@ const userSchema = new mongoose.Schema(
     },{timestamps : true}
 )
 
-// dont use  ()=>{} this call back becausse arrow fun doesnt know about this reference doesnt know about context below here context is important
+// dont use  ()=>{} this call back because arrow fun doesnt know about this reference doesnt know about context below here context is important
 userSchema.pre("save", async function (next) {
     if (!this.isModified("password")) return next();
     //this upper section encrypt the password
-    this.password = bcrypt.hash(this.password, 10) // it takes rounds and which you want to hash
+    this.password = await bcrypt.hash(this.password, 10) // it takes rounds and which you want to hash
     next()
 } )
 
