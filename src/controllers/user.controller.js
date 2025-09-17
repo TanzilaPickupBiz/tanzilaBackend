@@ -3,6 +3,7 @@ import {ApiError} from "../utils/ApiError.js";
 import {User} from "../models/user.model.js";
 import {uploadOnCloudinary} from "../utils/Cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
+import path from "path"
 
 const registerUser = asyncHandler( async(req,res)=>{
     // get user details from frontend
@@ -17,7 +18,7 @@ const registerUser = asyncHandler( async(req,res)=>{
 
     // get user details from frontend using destructuring
     const {userName , email , fullName, password} = req.body
-    console.log("email", email) ;
+    // console.log("email", email) ;
 
 
     // check validation field are not empty  you can do like below for all fields
@@ -34,7 +35,7 @@ const registerUser = asyncHandler( async(req,res)=>{
     }
 
     //  check if user exist already using email and username
-   const existedUser = User.findOne({
+   const existedUser = await User.findOne({
         $or: [ {userName} , {email} ]
     })
     if (existedUser) {
@@ -44,7 +45,16 @@ const registerUser = asyncHandler( async(req,res)=>{
     // check for images , check for avatar
 // this req.files access we get from multer req.body access get from express
    const avatarLocalPath = req.files?.avatar[0]?.path;  // you get the path of first property  avatar 
-   const coverImageLocalPath = req.files?.coverImage[0].path;   // you get the path of first coverImage
+//    const coverImageLocalPath = req.files?.coverImage[0].path;   // you get the path of first coverImage
+
+// check the cover image path if yes then give path if not then give empty string
+let coverImageLocalPath ;
+if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.length > 0) {
+    coverImageLocalPath = req.files.coverImage[0].path
+}
+
+//    console.log(req.files, "req.files")
+//    console.log(req.body, "req.body")
 
    if (!avatarLocalPath) {
     throw new ApiError(400 , "Avatar file is required.")
