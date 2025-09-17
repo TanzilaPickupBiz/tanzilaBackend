@@ -3,7 +3,25 @@ import {ApiError} from "../utils/ApiError.js";
 import {User} from "../models/user.model.js";
 import {uploadOnCloudinary} from "../utils/Cloudinary.js";
 import { ApiResponse } from "../utils/ApiResponse.js";
-import path from "path"
+
+const generateAccessAndRefreshTokens = async(userId) => {
+    try {
+       const user=  await User.findById(userId)
+       const accessToken = user.generateAccessToken()
+       const refreshToken = user.generateRefreshToken()
+
+//ow to add refresh token value in db 
+
+        user.refreshToken = refreshToken
+        await user.save({validateBeforeSave : false})
+
+        //return the access and refresh token
+        return {accessToken, refreshToken}
+
+    } catch (error) {
+        throw new ApiError(500, "Something went wrong while generating refresh and access token")
+    }
+}
 
 const registerUser = asyncHandler( async(req,res)=>{
     // get user details from frontend
@@ -98,5 +116,100 @@ if (req.files && Array.isArray(req.files.coverImage) && req.files.coverImage.len
 
 })
 
+const loginUser = asyncHandler( async(req,res) =>{
+    // get the data from req.body
+    // check username or email is available or not 
+    // find the user that in req.body is coming or not
+    //if login , check password if password is not there throw error
+    // if password is  there then generate access and refresh token 
+    // send these token  through cookies
+    //send response successfully logged in 
 
-export  {registerUser}
+    const {userName, email,password} = req.body ;
+
+    /* 
+    body. If both `userName` and `email` are missing, it throws an `ApiError` with status code 400 */
+    if (!userName && !email) {
+        throw new ApiError(400 , "username and email is required")
+    }
+
+    // here  if you want email either userName then use this
+    //  if (!(userName || email)) {
+    //     throw new ApiError(400 , "username or email is required")
+    // }
+
+    const user = await User.findOne({
+        $or: [ {userName} , {email} ]
+    })
+
+    if (!user) {
+        throw new ApiError(404, "User does not exist")
+    }
+
+    const isPasswordValid = await user.isPasswordCorrect(password)
+
+     if (!isPasswordValid) {
+        throw new ApiError(401, "Invalid user Credentials")
+    }
+
+    const {accessToken,refreshToken} = await generateAccessAndRefreshTokens(user._id)
+
+    const loggedInUser = await User.findById(user._id).
+    select("-password -refreshToken")   // dont send the password and refresh token after logged in
+
+    const options = {
+        httpOnly : true, // if you give both true then it will only modify be server
+        secure : true
+    }
+
+    return res
+    .status(200)
+    .cookie("accessToken", accessToken , options)
+    .cookie("refreshToken", refreshToken , options)
+    .json(
+        new ApiResponse(
+            200, 
+            {
+                user : loggedInUser , accessToken, refreshToken
+            },
+            "User logged in Successfully"
+        )
+    )
+
+})
+
+const logoutUser = asyncHandler( async(req,res)=> {
+    // clear the cookies
+    //reset the refreshToken from model
+ // this access come from jwt token that is in routes
+
+    await User.findByIdAndUpdate(
+        req.user._id, 
+        {
+            $set : { // this mngo db operator is used for update 
+                refreshToken : undefined
+            }
+        },
+        {
+            new : true  // by using this you get the new return value
+        }
+    )
+
+    const options ={
+        httpOnly : true ,
+        secure : true
+    }
+
+    return res
+    .status(200)
+    .clearCookie("accessToken", options)
+    .clearCookie("refreshToken", options)
+    .json(new ApiResponse(200 , {}, "User Logged out Successfully"))
+
+})
+
+export  {
+    registerUser,
+    loginUser,
+    logoutUser
+}
